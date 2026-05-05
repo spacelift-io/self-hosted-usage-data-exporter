@@ -7,6 +7,7 @@ import requests
 import time
 import datetime
 import json
+import urllib.parse
 
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
@@ -73,8 +74,10 @@ def validate_date(date_str):
     if not match:
         raise ValueError(f"Invalid date format: {date_str}, expected format: YYYY-MM-DD")
 
-def export_single(base_url, api_key_id, api_key_secret, current_start, current_end, skip_tls_verification, send_to_spacelift):
+def export_single(base_url, api_key_id, api_key_secret, current_start, current_end, skip_tls_verification, send_to_spacelift, tables):
     url = f"{base_url}/selfhosted/metrics?start_timestamp={current_start}&end_timestamp={current_end}"
+    if tables:
+        url += f"&tables={urllib.parse.quote(tables)}"
     try:
         logging.info("Requesting API Token")
         token = authenticate(base_url, api_key_id, api_key_secret, skip_tls_verification)
@@ -91,7 +94,7 @@ def export_single(base_url, api_key_id, api_key_secret, current_start, current_e
     except requests.RequestException as e:
         logging.error(f"Request error: {e}")
 
-def export(base_url, api_key_id, api_key_secret, start_date_str, end_date_str, batch_days, skip_tls_verification, send_to_spacelift):
+def export(base_url, api_key_id, api_key_secret, start_date_str, end_date_str, batch_days, skip_tls_verification, send_to_spacelift, tables):
     try:
         validate_date(start_date_str)
         validate_date(end_date_str)
@@ -110,7 +113,7 @@ def export(base_url, api_key_id, api_key_secret, start_date_str, end_date_str, b
         if current_end > end_timestamp:
             current_end = end_timestamp
 
-        export_single(base_url, api_key_id, api_key_secret, current_start, current_end, skip_tls_verification, send_to_spacelift)
+        export_single(base_url, api_key_id, api_key_secret, current_start, current_end, skip_tls_verification, send_to_spacelift, tables)
 
         # Move to the next batch
         current_start = current_end
@@ -140,9 +143,10 @@ def main():
     parser.add_argument('--batch-size', default=7, type=int, help="Number of days to export in a single batch")
     parser.add_argument('--skip-tls-verification', action='store_true', help="Skip TLS verification")
     parser.add_argument('--send-to-spacelift', action='store_true', help="Send data directly to Spacelift instead of saving it locally")
+    parser.add_argument('--tables', default=None, help="Comma-separated list of tables to export (e.g. `logins,heartbeats,daily_worker_usages`). When omitted the full set of tables is exported. Unknown table names are rejected by the server, which returns the list of valid choices.")
     args = parser.parse_args()
 
-    export(args.base_url, args.api_key_id, args.api_key_secret, args.start_date, args.end_date, args.batch_size, args.skip_tls_verification, args.send_to_spacelift)
+    export(args.base_url, args.api_key_id, args.api_key_secret, args.start_date, args.end_date, args.batch_size, args.skip_tls_verification, args.send_to_spacelift, args.tables)
 
 if __name__ == "__main__":
     main()
